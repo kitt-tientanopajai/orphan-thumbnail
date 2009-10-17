@@ -114,7 +114,7 @@ list_orphan_thumbnails (const char *thumb_size)
   int n;
 
   /* find thumbnail directory */
-  pwd = getpwuid (getuid ());
+  pwd = getpwuid (geteuid ());
   snprintf (thumb_dir, PATH_MAX, "%s/.thumbnails/%s/", pwd->pw_dir, thumb_size);
   if (!show_orphan_only)
     printf ("\nThumbnail directory: %s\n\n", thumb_dir);
