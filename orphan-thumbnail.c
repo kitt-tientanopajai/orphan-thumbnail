@@ -228,7 +228,7 @@ list_orphan_thumbnails (const char *thumb_size)
                                       thumb_error++;
                                       if (!quiet_mode)
                                         printf ("%s cannot be deleted -- skip.\n", dir_entry[n]->d_name);
-                                      perror ("remove");
+                                      perror ("unable to delete");
                                     }
                                 }
                               else
