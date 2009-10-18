@@ -28,6 +28,8 @@ MA 02110-1301, USA.
 Todo
 ----
 - Ignore /media directory
+- manpage
+- flawfinder and valgrind
 
 */
 
@@ -35,6 +37,7 @@ Todo
 #include <stdlib.h>
 #include <unistd.h>
 #include <inttypes.h>
+#include <errno.h>
 #include <string.h>
 #include <dirent.h>
 #include <getopt.h>
@@ -117,11 +120,16 @@ list_orphan_thumbnails (const char *thumb_size)
   pwd = getpwuid (geteuid ());
   snprintf (thumb_dir, PATH_MAX, "%s/.thumbnails/%s/", pwd->pw_dir, thumb_size);
   if (!show_orphan_only && !quiet_mode)
-    printf ("\nThumbnail directory: %s\n\n", thumb_dir);
+    printf ("Thumbnail directory: %s\n", thumb_dir);
 
   if ((n = scandir (thumb_dir, &dir_entry, 0, alphasort)) < 0)
     {
-      perror ("scan thumbnail directory");
+      if (!show_orphan_only && !quiet_mode)
+        if (errno == ENOENT)
+          printf ("%s not found -- skip", thumb_dir);
+        else
+          perror ("scan thumbnail directory");
+
       return -1;
     }
   else 
@@ -265,7 +273,7 @@ list_orphan_thumbnails (const char *thumb_size)
           printf ("%d thumbnail total\n", thumb_total);
           printf ("%d thumbnail orphan\n", thumb_orphan);
           printf ("%d thumbnail successfully processed\n", thumb_total - thumb_error);
-          printf ("%llu byte recovered\n", total_bytes);
+          printf ("%llu byte recovered\n\n", total_bytes);
         }
     }
   return 0;
