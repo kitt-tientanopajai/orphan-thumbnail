@@ -126,7 +126,7 @@ list_orphan_thumbnails (const char *thumb_size)
     {
       if (!show_orphan_only && !quiet_mode)
         if (errno == ENOENT)
-          printf ("%s not found -- skip", thumb_dir);
+          printf ("%s not found -- skip\n", thumb_dir);
         else
           perror ("scan thumbnail directory");
 
