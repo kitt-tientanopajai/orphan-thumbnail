@@ -58,21 +58,20 @@ int delete_thumb = 0;
 int show_orphan_only = 0;
 int quiet_mode = 0;
 
-int 
+int
 main (int argc, char *argv[])
 {
   int opt;
 
   /* parse argument */
-  static const struct option longopts[] = 
-    {
-      {"delete",    0, NULL, 'd'},
-      {"help",      0, NULL, 'h'},
-      {"orphan",    0, NULL, 'o'},
-      {"quiet",     0, NULL, 'q'},
-      {"version",   0, NULL, 'v'},
-      {0, 0, 0, 0}
-    };
+  static const struct option longopts[] = {
+    {"delete",  0, NULL, 'd'},
+    {"help",    0, NULL, 'h'},
+    {"orphan",  0, NULL, 'o'},
+    {"quiet",   0, NULL, 'q'},
+    {"version", 0, NULL, 'v'},
+    {0, 0, 0, 0}
+  };
 
   while ((opt = getopt_long (argc, argv, "dhoqv", longopts, 0)) != -1)
     {
@@ -99,7 +98,7 @@ main (int argc, char *argv[])
         }
     }
 
-  if (delete_thumb == 0) 
+  if (delete_thumb == 0)
     quiet_mode = 0;
 
   list_orphan_thumbnails ("normal");
@@ -125,14 +124,16 @@ list_orphan_thumbnails (const char *thumb_size)
   if ((n = scandir (thumb_dir, &dir_entry, 0, alphasort)) < 0)
     {
       if (!show_orphan_only && !quiet_mode)
-        if (errno == ENOENT)
-          printf ("%s not found -- skip\n", thumb_dir);
-        else
-          perror ("scan thumbnail directory");
+        {
+          if (errno == ENOENT)
+            printf ("%s not found -- skip\n", thumb_dir);
+          else
+            perror ("scan thumbnail directory");
+        }
 
       return -1;
     }
-  else 
+  else
     {
       int file_total = n - 2;   /* total files in the thumbnail directory (exclude . and ..) */
       int thumb_total = 0;      /* total thumbnail files */
@@ -152,17 +153,26 @@ list_orphan_thumbnails (const char *thumb_size)
               FILE *fp = fopen (thumb_file, "rb");
               if (fp == NULL) 
                 {
-                  printf ("Error opening %s, skip\n", dir_entry[n]->d_name);
+                  if (!show_orphan_only && !quiet_mode)
+                    printf ("Error opening %s -- skip\n", dir_entry[n]->d_name);
                   continue;
                 }
 
               /* check PNG signature */
               char header[8];
-              fread (header, 1, 8, fp);
+              if (fread (header, 1, 8, fp) < 8)
+                {
+                  /* fread error */
+                  if (!show_orphan_only && !quiet_mode)
+                    printf ("%s cannot be read -- skip\n", dir_entry[n]->d_name);
+                  fclose (fp);
+                  continue;
+                }
               if (png_sig_cmp(header, 0, 8) != 0)
                 {
                   /* PNG signature not found */
-                  printf ("%s is not PNG, skip\n", dir_entry[n]->d_name);
+                  if (!show_orphan_only && !quiet_mode)
+                    printf ("%s is not PNG -- skip\n", dir_entry[n]->d_name);
                   fclose (fp);
                   continue;
                 }
@@ -173,7 +183,8 @@ list_orphan_thumbnails (const char *thumb_size)
                   png_structp png_ptr = png_create_read_struct (PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
                   if (!png_ptr)
                     {
-                      printf ("%s: error creating read struct, skip\n", dir_entry[n]->d_name);
+                      if (!show_orphan_only && !quiet_mode)
+                        printf ("%s: error creating read struct -- skip\n", dir_entry[n]->d_name);
                       thumb_error++;
                       fclose (fp);
                       continue;
@@ -181,7 +192,8 @@ list_orphan_thumbnails (const char *thumb_size)
                   png_infop info_ptr = png_create_info_struct (png_ptr);
                   if (!info_ptr)
                     {
-                      printf ("%s: error creating info struct, skip\n", dir_entry[n]->d_name);
+                      if (!show_orphan_only && !quiet_mode)
+                        printf ("%s: error creating info struct -- skip\n", dir_entry[n]->d_name);
                       thumb_error++;
                       fclose (fp);
                       continue;
@@ -189,7 +201,8 @@ list_orphan_thumbnails (const char *thumb_size)
                   png_infop end_info_ptr = png_create_info_struct (png_ptr);
                   if (!end_info_ptr)
                     {
-                      printf ("%s: error creating end info struct, skip\n", dir_entry[n]->d_name);
+                      if (!show_orphan_only && !quiet_mode)
+                        printf ("%s: error creating end info struct -- skip\n", dir_entry[n]->d_name);
                       thumb_error++;
                       fclose (fp);
                       continue;
@@ -210,8 +223,9 @@ list_orphan_thumbnails (const char *thumb_size)
                       if (strncmp (text_ptr[c].key, "Thumb::URI", 10) == 0)
                         {
                           /* process the file */
+                          char *filename = uri_to_filename (text_ptr[c].text);
                           struct stat file_stat;
-                          int orphan = (stat (uri_to_filename (text_ptr[c].text), &file_stat) == -1);
+                          int orphan = (stat (filename, &file_stat) == -1);
 
                           if (orphan)
                             {
@@ -236,13 +250,14 @@ list_orphan_thumbnails (const char *thumb_size)
                                       thumb_error++;
                                       if (!quiet_mode)
                                         printf ("%s cannot be deleted -- skip.\n", dir_entry[n]->d_name);
+
                                       perror ("unable to delete");
                                     }
                                 }
                               else
                                 {
                                   printf ("Thumbnail: %s\n", dir_entry[n]->d_name);
-                                  printf ("File:      %s\n", uri_to_filename (text_ptr[c].text));
+                                  printf ("File:      %s\n", filename);
                                   printf ("Orphan:    yes\n\n");
                                 }
                             }
@@ -251,11 +266,12 @@ list_orphan_thumbnails (const char *thumb_size)
                               if (!show_orphan_only && !delete_thumb)
                                 {
                                   printf ("Thumbnail: %s\n", dir_entry[n]->d_name);
-                                  printf ("File:      %s\n", uri_to_filename (text_ptr[c].text));
+                                  printf ("File:      %s\n", filename);
                                   printf ("Orphan:    no\n\n");
                                 }
                             }
 
+                          free (filename);
                           /* exit search loop */
                           break;
                         }
@@ -267,6 +283,7 @@ list_orphan_thumbnails (const char *thumb_size)
           free(dir_entry[n]);
         }
       free(dir_entry);
+
       if (!(show_orphan_only || quiet_mode))
         {
           printf ("%d files total\n", file_total);
@@ -282,9 +299,9 @@ list_orphan_thumbnails (const char *thumb_size)
 static char *
 uri_to_filename (const char *uri)
 {
-  char *str = strdup (uri);
-  char *filename = str;
-  char *p = str;
+  char *filename = strdup (uri + 7);
+  char *str = filename;
+  char *p = filename;
 
   while (*str) 
     {
@@ -301,7 +318,8 @@ uri_to_filename (const char *uri)
       str++;
     }
   *p = 0;
-  return filename + 7;
+  
+  return filename;
 }
 
 /* convert single hex character to integer */
