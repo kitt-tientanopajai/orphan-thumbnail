@@ -28,8 +28,6 @@ MA 02110-1301, USA.
 Todo
 ----
 - Ignore /media directory
-- manpage
-- flawfinder and valgrind
 
 */
 
