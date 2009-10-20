@@ -27,7 +27,6 @@ MA 02110-1301, USA.
 
 Todo
 ----
-- Ignore /media directory
 
 */
 
@@ -55,6 +54,8 @@ static void help (const char *);
 int delete_thumb = 0;
 int show_orphan_only = 0;
 int quiet_mode = 0;
+int exclude_path = 0;
+char exclude_path_name[PATH_MAX];
 
 int
 main (int argc, char *argv[])
@@ -63,15 +64,17 @@ main (int argc, char *argv[])
 
   /* parse argument */
   static const struct option longopts[] = {
-    {"delete",  0, NULL, 'd'},
-    {"help",    0, NULL, 'h'},
-    {"orphan",  0, NULL, 'o'},
-    {"quiet",   0, NULL, 'q'},
-    {"version", 0, NULL, 'v'},
+    {"delete",  no_argument,        NULL, 'd'},
+    {"help",    no_argument,        NULL, 'h'},
+    {"orphan",  no_argument,        NULL, 'o'},
+    {"quiet",   no_argument,        NULL, 'q'},
+    {"version", no_argument,        NULL, 'v'},
+    {"exclude", required_argument,  NULL, 'x'},
     {0, 0, 0, 0}
   };
 
-  while ((opt = getopt_long (argc, argv, "dhoqv", longopts, 0)) != -1)
+  memset (exclude_path_name, '\0', sizeof exclude_path_name);
+  while ((opt = getopt_long (argc, argv, "dhoqvx:", longopts, 0)) != -1)
     {
       switch (opt)
         {
@@ -86,6 +89,10 @@ main (int argc, char *argv[])
           break;
         case 'q':
           quiet_mode = 1;
+          break;
+        case 'x':
+          exclude_path = 1;
+          strncpy (exclude_path_name, optarg, (sizeof exclude_path_name) - 1);
           break;
         case 'v':
           printf ("%s %s\n", argv[0], VERSION);
@@ -136,6 +143,7 @@ list_orphan_thumbnails (const char *thumb_size)
       int file_total = n - 2;   /* total files in the thumbnail directory (exclude . and ..) */
       int thumb_total = 0;      /* total thumbnail files */
       int thumb_error = 0;      /* total thumbnail error */
+      int thumb_exclude = 0;    /* total thumbnail excluded */
       int thumb_orphan = 0;     /* total orphan thumbnail files */
       uint64_t total_bytes = 0; /* total bytes recovered */
       
@@ -225,6 +233,13 @@ list_orphan_thumbnails (const char *thumb_size)
                           struct stat file_stat;
                           int orphan = (stat (filename, &file_stat) == -1);
 
+                          if (exclude_path && (strncmp (filename, exclude_path_name, strlen (exclude_path_name)) == 0))
+                            {
+                              thumb_exclude++;
+                              free (filename);
+                              break;
+                            }
+
                           if (orphan)
                             {
                               struct stat thumb_stat;
@@ -285,10 +300,11 @@ list_orphan_thumbnails (const char *thumb_size)
       if (!(show_orphan_only || quiet_mode))
         {
           printf ("%d files total\n", file_total);
-          printf ("%d thumbnail total\n", thumb_total);
-          printf ("%d thumbnail orphan\n", thumb_orphan);
-          printf ("%d thumbnail successfully processed\n", thumb_total - thumb_error);
-          printf ("%llu byte recovered\n\n", total_bytes);
+          printf ("%d thumbnails total\n", thumb_total);
+          printf ("%d thumbnails excluded\n", thumb_exclude);
+          printf ("%d thumbnails orphan\n", thumb_orphan);
+          printf ("%d thumbnails successfully processed\n", thumb_total - thumb_error);
+          printf ("%llu bytes recovered\n\n", total_bytes);
         }
     }
   return 0;
@@ -338,6 +354,7 @@ help (const char *progname)
   printf ("  -d, --delete                    delete orphan thumbnail(s)\n");
   printf ("  -o, --orphan                    list only orphan thumbnail(s)\n");
   printf ("  -q, --quiet                     quiet mode, only if -d is specified\n");
+  printf ("  -x, --exclude=PATH              do not list/delete thumbnails of files in PATH\n");
   printf ("  -v, --version                   show version\n");
   printf ("  -h, --help                      print this help\n");
   printf ("\n");
